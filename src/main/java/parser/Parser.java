@@ -12,13 +12,17 @@ import java.nio.file.Paths;
 
 public class Parser<A> extends VoidVisitorAdapter<A> {
     private final String FILE_PATH;
+    private final String DATA_PATH;
 
     public Parser() {
         FILE_PATH = "src/main/test-files/CrapCode.java";
+        DATA_PATH = "src/main/test-files/DataStructure.java";
     }
 
     public void parse() throws IOException {
-        CompilationUnit cu = StaticJavaParser.parse(Files.newInputStream(Paths.get(FILE_PATH)));
-        new VisitorAdapter().visit(cu, null);
+        CompilationUnit cu1 = StaticJavaParser.parse(Files.newInputStream(Paths.get(FILE_PATH)));
+        CompilationUnit cu2 = StaticJavaParser.parse(Files.newInputStream(Paths.get(DATA_PATH)));
+        new VisitorAdapter().visit(cu1, null);
+        new VisitorAdapter().visit(cu2, null);
     }
 }
