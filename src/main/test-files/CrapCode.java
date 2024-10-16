@@ -1,6 +1,9 @@
 public class CrapCode {
 
-    public String pub;
+    public String pub1;
+    public String pub2;
+    private String priv1;
+    private String priv2;
 
     public void CrapMethod1() {
         int counter;
