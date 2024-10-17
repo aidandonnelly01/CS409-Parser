@@ -21,8 +21,7 @@ public class Parser<A> extends VoidVisitorAdapter<A> {
 
     public void parse() throws IOException {
         CompilationUnit cu1 = StaticJavaParser.parse(Files.newInputStream(Paths.get(FILE_PATH)));
-        CompilationUnit cu2 = StaticJavaParser.parse(Files.newInputStream(Paths.get(DATA_PATH)));
-        new VisitorAdapter().visit(cu1, null);
-        new VisitorAdapter().visit(cu2, null);
+        VisitorAdapter visitor = new VisitorAdapter();
+        visitor.visit(cu1, null);
     }
 }

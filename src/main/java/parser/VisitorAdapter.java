@@ -1,12 +1,18 @@
 package parser;
 
 import com.github.javaparser.Range;
+import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.expr.VariableDeclarationExpr;
+import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.apache.commons.lang3.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class VisitorAdapter extends VoidVisitorAdapter {
     /**
@@ -24,6 +30,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         } else if (StringUtils.countMatches(n.toString(), '=') > 1 ) {
             System.out.println("Smell detected! Several variables assigned in a single statement: " + n);
         }
+        super.visit(n, arg);
     }
 
     /**
@@ -35,12 +42,90 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     public void visit(ClassOrInterfaceDeclaration n, Object arg) {
         /* If there are methods in a class it will consider a public method a smell. Otherwise, the class is considered
         a data structure and it gets passed over */
-        if (!n.getMethods().isEmpty()) {
+        List<MethodDeclaration> methods = n.getMethods();
+        if (!methods.isEmpty()) {
             n.getFields().stream()
                     .filter(FieldDeclaration::isPublic)
                     .forEach(o -> System.out.println("Smell detected! Unnecessary public variable: " + o));
         }
+        super.visit(n, arg);
     }
 
+    @Override
+    public void visit(BlockStmt n, Object arg) {
+        //System.out.println(n);
+        super.visit(n, arg);
+    }
 
+    @Override
+    public void visit(StringLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary string literal: " + n);
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(IntegerLiteralExpr n, Object arg) {
+        if (n.asNumber().intValue() > 1 || n.asNumber().intValue() < -1 ) {
+            System.out.println("Smell detected! Unnecessary integer literal: " + n.getParentNode());
+        }
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(ForStmt n, Object arg) {
+        NodeList<Expression> variables = n.getInitialization().;
+        for (Statement statement : n.getBody().asBlockStmt().getStatements()) {
+            System.out.println("Smell detected! Unnecessary statement: " + statement);
+            statement.asExpressionStmt().getExpression();
+        }
+        super.visit(n, arg);
+    }
+
+    public void visit(SwitchStmt n, Object arg) {
+        //System.out.println(n);
+        boolean isDefault = false;
+        for (SwitchEntry e : n.getEntries()) {
+            System.out.println("Switch entry: " + e);
+            if (e.getLabels().isEmpty()) {
+                System.out.println("default statement");
+                isDefault = true;
+            } else if (e.getStatements().isEmpty()) {
+                //This works for empty statements
+                System.out.println("empty statement");
+            } else if (!e.getStatements().contains("break;")) {
+                System.out.println("no break statement");
+                //try getAllContainedComments
+                //&& !e.getAllContainedComments().contains("fall through")) {
+                //System.out.println("No break statement & No fall through statement here:" + e.getStatements());
+            } else {
+                System.out.println("Normal statement");
+            }
+           // for (Statement statement : e.getStatements()) {
+                //System.out.println("statement : " + statement);
+//                if (Statement.getStatements().contains("default")) {
+//                    System.out.println("default statement");
+//                } else if (e.getStatements().isEmpty()) {
+//                    System.out.println("empty statement");
+//                } else if (!e.getStatements().contains("break") && !e.getStatements().contains("fall through")) {
+//                    System.out.println("No break statement & No fall through statement here:" + e.getStatements());
+//                } else {
+//                    System.out.println("Normal statement");
+//                }
+           // }
+        }
+        if (!isDefault) {
+            System.out.println("No default statement: \n" + n);
+        }
+        //n.getEntries().stream().forEach(o -> System.out.println(o.getStatements()));
+        //n.getEntries().stream().filter(o -> o.getStatements());
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(MethodDeclaration n, Object arg) {
+        /*System.out.println(n.getBody());
+        n.getBody().ifPresent(BlockStmt::getStatements);
+         */
+        super.visit(n, arg);
+    }
 }
