@@ -18,6 +18,9 @@ public class CrapCode {
             counter = i + counter;
             i++;
         }
+        for (int i = 0; i < 5;) {
+            i++;
+        }
     }
 
     public void literalMethod(int a, String b) {

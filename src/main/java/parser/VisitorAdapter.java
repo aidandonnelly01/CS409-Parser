@@ -1,6 +1,5 @@
 package parser;
 
-import com.github.javaparser.Range;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
@@ -11,8 +10,9 @@ import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
 public class VisitorAdapter extends VoidVisitorAdapter {
     /**
@@ -73,12 +73,37 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(ForStmt n, Object arg) {
-        NodeList<Expression> variables = n.getInitialization().;
-        for (Statement statement : n.getBody().asBlockStmt().getStatements()) {
-            System.out.println("Smell detected! Unnecessary statement: " + statement);
-            statement.asExpressionStmt().getExpression();
+        ArrayList<String> variableNames = new ArrayList<>();
+        for (Expression e : n.getUpdate()) {
+            variableNames.add(getTargetVariableName(e));
         }
+        n.getBody().asBlockStmt().getStatements().stream()
+                .filter(o -> o.asExpressionStmt().getExpression().isAssignExpr() || o.asExpressionStmt().getExpression().isUnaryExpr())
+                .filter(o -> variableNames.contains(getTargetVariableName(o)))
+                .forEach(o -> System.out.println("Smell detected! Loop iteration variable changed in the body of a loop: " + o));
         super.visit(n, arg);
+    }
+
+    private String getTargetVariableName(Statement s) {
+        if (s.asExpressionStmt().getExpression().isAssignExpr()) {
+            AssignExpr assignExpr = s.asExpressionStmt().getExpression().asAssignExpr();
+            return assignExpr.getTarget().toString();
+        } else if (s.asExpressionStmt().getExpression().isUnaryExpr()) {
+            UnaryExpr unaryExpr = s.asExpressionStmt().getExpression().asUnaryExpr();
+            return unaryExpr.getExpression().toString();
+        }
+        return "";
+    }
+
+    private String getTargetVariableName(Expression e) {
+        if (e.toAssignExpr().isPresent()) {
+            AssignExpr assignExpr = e.toAssignExpr().get();
+            return assignExpr.getTarget().toString();
+        } else if (e.toUnaryExpr().isPresent()) {
+            UnaryExpr unaryExpr = e.toUnaryExpr().get();
+            return unaryExpr.getExpression().toString();
+        }
+        return "";
     }
 
     public void visit(SwitchStmt n, Object arg) {
