@@ -1,21 +1,20 @@
 package parser;
 
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.comments.Comment;
-import com.github.javaparser.ast.comments.LineComment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class VisitorAdapter extends VoidVisitorAdapter {
     /**
@@ -27,6 +26,17 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     public void visit(VariableDeclarationExpr n, Object arg) {
         //System.out.println("VariableDeclarationExpr visit");
         if (n.getVariables().size() > 1) {
+            n.getVariables().get(0).;
+            Optional<Node> parentNode = n.getParentNode();
+            if (parentNode.isPresent()) {
+                if (parentNode.get().is)
+            }
+            //SwitchEntry nextEntry = entries.get(i + 1);
+            /*Optional<Comment> comment = nextEntry.getComment();
+            //If there is a comment, check it is a fall through comment, if there are no comments,
+            //then it must be a smell
+            if (comment.isPresent()) {
+                if (!comment.get().getContent().contains("fall through")) {*/
             System.out.println("Smell detected! Too many variables declared at once here: " + n);
         } else if (StringUtils.countMatches(n.toString(), '=') == 0 ) {
             System.out.println("Smell detected! Variable not initialised on the same line it is declared: " + n);
@@ -43,7 +53,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
      */
     @Override
     public void visit(ClassOrInterfaceDeclaration n, Object arg) {
-        /* If there are methods in a class it will consider a public method a smell. Otherwise, the class is considered
+        /* If there are methods in a class it will consider a public variable a smell. Otherwise, the class is considered
         a data structure and it gets passed over */
         List<MethodDeclaration> methods = n.getMethods();
         if (!methods.isEmpty()) {
@@ -51,12 +61,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
                     .filter(FieldDeclaration::isPublic)
                     .forEach(o -> System.out.println("Smell detected! Unnecessary public variable: " + o));
         }
-        super.visit(n, arg);
-    }
-
-    @Override
-    public void visit(BlockStmt n, Object arg) {
-        //System.out.println(n);
         super.visit(n, arg);
     }
 
@@ -167,11 +171,4 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         return false;
     }
 
-    @Override
-    public void visit(MethodDeclaration n, Object arg) {
-        /*System.out.println(n.getBody());
-        n.getBody().ifPresent(BlockStmt::getStatements);
-         */
-        super.visit(n, arg);
-    }
 }
