@@ -80,6 +80,35 @@ public class CrapCode {
                 doOneTwoOrThree();
                 break;
         }
+        switch (input) {
+            case 0:
+                doOneOrTwo();
+                break;
+            case 1:
+                doOneTwoOrThree();
+                break;
+            case 2:
+                doOneTwoOrThree();
+                //fall through
+            case 3:
+                doOneTwoOrThree();
+                //fall through
+            case 4:
+                doOneTwoOrThree();
+                break;
+            case 5:
+                doOneTwoOrThree();
+                break;
+            case 6:
+                doOneTwoOrThree();
+                //fall through
+            case 7:
+                doOneTwoOrThree();
+                break;
+            case 8:
+                doOneTwoOrThree();
+                break;
+        }
     }
 
 }

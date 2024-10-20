@@ -5,6 +5,8 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.comments.Comment;
+import com.github.javaparser.ast.comments.LineComment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
@@ -13,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Optional;
 
 public class VisitorAdapter extends VoidVisitorAdapter {
     /**
@@ -107,43 +110,61 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     }
 
     public void visit(SwitchStmt n, Object arg) {
-        //System.out.println(n);
         boolean isDefault = false;
-        for (SwitchEntry e : n.getEntries()) {
-            System.out.println("Switch entry: " + e);
-            if (e.getLabels().isEmpty()) {
-                System.out.println("default statement");
+        NodeList<SwitchEntry> entries = n.getEntries();
+        //Loops through every entry
+        for (int i = 0; i < entries.size(); i++) {
+            //Gets the current entry
+            SwitchEntry currentEntry = entries.get(i);
+            //Checks if there is a default statement included in the switch statement
+            if (currentEntry.isDefault()) {
                 isDefault = true;
-            } else if (e.getStatements().isEmpty()) {
-                //This works for empty statements
-                System.out.println("empty statement");
-            } else if (!e.getStatements().contains("break;")) {
-                System.out.println("no break statement");
-                //try getAllContainedComments
-                //&& !e.getAllContainedComments().contains("fall through")) {
-                //System.out.println("No break statement & No fall through statement here:" + e.getStatements());
             } else {
-                System.out.println("Normal statement");
+                //If there are statements in the case entry, it will perform this loop. This means that the empty case
+                //exception is accounted for
+                if (!currentEntry.getStatements().isEmpty()) {
+                    //If the statement does not have one of the termination statements, such as break, continue or a thrown
+                    //exception, it will enter this statement
+                    if (!hasEndingStatement(currentEntry)) {
+                        //If it's not the final entry in the switch statement do this
+                        if (!(i == entries.size() - 1)) {
+                            //In most of the tests, the fall through comment seems to be contained on the next switch entry,
+                            //Which is why this is necessary to get the next statement
+                            SwitchEntry nextEntry = entries.get(i + 1);
+                            Optional<Comment> comment = nextEntry.getComment();
+                            //If there is a comment, check it is a fall through comment, if there are no comments,
+                            //then it must be a smell
+                            if (comment.isPresent()) {
+                                if (!comment.get().getContent().contains("fall through")) {
+                                    System.out.println("Smell detected! Switch statement case not specified as a fall through: " + entries.get(i));
+                                }
+                            } else {
+                                System.out.println("Smell detected! Switch statement case not specified as a fall through: " + entries.get(i));
+                            }
+                        }
+                    }
+                }
             }
-           // for (Statement statement : e.getStatements()) {
-                //System.out.println("statement : " + statement);
-//                if (Statement.getStatements().contains("default")) {
-//                    System.out.println("default statement");
-//                } else if (e.getStatements().isEmpty()) {
-//                    System.out.println("empty statement");
-//                } else if (!e.getStatements().contains("break") && !e.getStatements().contains("fall through")) {
-//                    System.out.println("No break statement & No fall through statement here:" + e.getStatements());
-//                } else {
-//                    System.out.println("Normal statement");
-//                }
-           // }
         }
         if (!isDefault) {
-            System.out.println("No default statement: \n" + n);
+            n.getTokenRange().ifPresent(o -> System.out.println("No default statement at switch statement which is at: " + o.getBegin().toString()));
         }
-        //n.getEntries().stream().forEach(o -> System.out.println(o.getStatements()));
-        //n.getEntries().stream().filter(o -> o.getStatements());
         super.visit(n, arg);
+    }
+
+    private boolean hasEndingStatement(SwitchEntry entry) {
+        for (Statement statement : entry.getStatements()) {
+            if (statement.isBreakStmt()) {
+                return true;
+            } else if (statement.isContinueStmt()) {
+                return true;
+            } else if (statement.isReturnStmt()) {
+                return true;
+            } else if (statement.isThrowStmt()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
