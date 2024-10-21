@@ -10,6 +10,7 @@ public class CrapCode {
         counter = 0;
         char a = b = 'c';
         int x, y;
+        x = 5;
         for (int i, j = 0; i < 5; i++, j++) {
             int c, d;
             counter++;

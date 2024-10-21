@@ -2,10 +2,7 @@ package parser;
 
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
@@ -15,7 +12,6 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class VisitorAdapter extends VoidVisitorAdapter {
     /**
@@ -26,8 +22,8 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     @Override
     public void visit(VariableDeclarationExpr n, Object arg) {
         //System.out.println("VariableDeclarationExpr visit");
+        System.out.println("Variable declaration: " + n);
         if (n.getVariables().size() > 1) {
-            Optional<VariableDeclarator> declarator = n.getVariables().getFirst();
             Optional<Node> parentNodeOp = n.getParentNode();
             if (parentNodeOp.isPresent()) {
                 Node parentNode = parentNodeOp.get();
@@ -43,6 +39,56 @@ public class VisitorAdapter extends VoidVisitorAdapter {
             System.out.println("Smell detected! Several variables assigned in a single statement: " + n);
         }
         super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(MethodDeclaration n, Object arg) {
+        if (isGetterOrSetter(n)) {
+
+            String methodName = n.getNameAsString();
+            if (methodName.contains("get") || methodName.contains("set")) {
+                if (Character.isUpperCase(methodName.charAt(3))) {
+
+                }
+            } else {
+                System.out.println("Accessor or mutator not named correctly: " + n.getNameAsString());
+            }
+        }
+        super.visit(n, arg);
+    }
+
+    private VariableDeclarator getVariableFromGetterOrSetter(MethodDeclaration n) {
+        Optional<BlockStmt> body = n.getBody();
+        if (body.isPresent()) {
+            if (body.get().getStatements().size() == 1) {
+                if (body.get().getStatements().getFirst().isPresent()) {
+                    if (body.get().getStatements().getFirst().get().isReturnStmt()) {
+                        if (body.get().getStatements().getFirst().get().asReturnStmt().getExpression().isPresent()) {
+                            body.get().getStatements().getFirst().get().asReturnStmt().getExpression().get();
+                        };
+                    } else {
+                        return body.get().getStatements().getFirst().get().isAssertStmt();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isGetterOrSetter(MethodDeclaration n) {
+        Optional<BlockStmt> body = n.getBody();
+        if (body.isPresent()) {
+            if (body.get().getStatements().size() == 1) {
+                if (body.get().getStatements().getFirst().isPresent()) {
+                    if (body.get().getStatements().getFirst().get().isReturnStmt()) {
+                        return true;
+                    } else {
+                        return body.get().getStatements().getFirst().get().isAssertStmt();
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -83,7 +129,12 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         for (Expression e : n.getUpdate()) {
             variableNames.add(getTargetVariableName(e));
         }
-        n.getBody().asBlockStmt().getStatements().stream()
+        Statement body = n.getBody();
+        while (n.getBody().isForStmt()) {
+            body = body.asForStmt().getBody();
+        }
+        body.asBlockStmt().getStatements().stream()
+                .filter(Statement::isExpressionStmt)
                 .filter(o -> o.asExpressionStmt().getExpression().isAssignExpr() || o.asExpressionStmt().getExpression().isUnaryExpr())
                 .filter(o -> variableNames.contains(getTargetVariableName(o)))
                 .forEach(o -> System.out.println("Smell detected! Loop iteration variable changed in the body of a loop: " + o));
