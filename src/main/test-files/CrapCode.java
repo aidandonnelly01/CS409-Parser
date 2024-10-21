@@ -11,6 +11,7 @@ public class CrapCode {
         char a = b = 'c';
         int x, y;
         for (int i, j = 0; i < 5; i++, j++) {
+            int c, d;
             counter++;
         }
         for (int i = 0; i < 5; i++) {

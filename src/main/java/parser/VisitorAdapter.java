@@ -5,6 +5,7 @@ import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
@@ -26,18 +27,16 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     public void visit(VariableDeclarationExpr n, Object arg) {
         //System.out.println("VariableDeclarationExpr visit");
         if (n.getVariables().size() > 1) {
-            n.getVariables().get(0).;
-            Optional<Node> parentNode = n.getParentNode();
-            if (parentNode.isPresent()) {
-                if (parentNode.get().is)
+            Optional<VariableDeclarator> declarator = n.getVariables().getFirst();
+            Optional<Node> parentNodeOp = n.getParentNode();
+            if (parentNodeOp.isPresent()) {
+                Node parentNode = parentNodeOp.get();
+                if (!(parentNode instanceof ForStmt)) {
+                    System.out.println("Smell detected! Too many variables declared at once here: " + n);
+                }
+            } else {
+                System.out.println("Smell detected! Too many variables declared at once here: " + n);
             }
-            //SwitchEntry nextEntry = entries.get(i + 1);
-            /*Optional<Comment> comment = nextEntry.getComment();
-            //If there is a comment, check it is a fall through comment, if there are no comments,
-            //then it must be a smell
-            if (comment.isPresent()) {
-                if (!comment.get().getContent().contains("fall through")) {*/
-            System.out.println("Smell detected! Too many variables declared at once here: " + n);
         } else if (StringUtils.countMatches(n.toString(), '=') == 0 ) {
             System.out.println("Smell detected! Variable not initialised on the same line it is declared: " + n);
         } else if (StringUtils.countMatches(n.toString(), '=') > 1 ) {
