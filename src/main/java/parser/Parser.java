@@ -15,7 +15,7 @@ public class Parser<A> extends VoidVisitorAdapter<A> {
     private final String DATA_PATH;
 
     public Parser() {
-        FILE_PATH = "src/main/test-files/CrapCode.java";
+        FILE_PATH = "src/main/test-files/multipleBadCodeInstances.java";
         DATA_PATH = "src/main/test-files/DataStructure.java";
     }
 

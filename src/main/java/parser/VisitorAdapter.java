@@ -1,18 +1,14 @@
 package parser;
 
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.comments.Comment;
-import com.github.javaparser.ast.comments.LineComment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Optional;
@@ -26,14 +22,56 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     @Override
     public void visit(VariableDeclarationExpr n, Object arg) {
         //System.out.println("VariableDeclarationExpr visit");
+        System.out.println("Variable declaration: " + n);
         if (n.getVariables().size() > 1) {
-            System.out.println("Smell detected! Too many variables declared at once here: " + n);
+            Optional<Node> parentNodeOp = n.getParentNode();
+            if (parentNodeOp.isPresent()) {
+                Node parentNode = parentNodeOp.get();
+                if (!(parentNode instanceof ForStmt)) {
+                    System.out.println("Smell detected! Too many variables declared at once here: " + n);
+                }
+            } else {
+                System.out.println("Smell detected! Too many variables declared at once here: " + n);
+            }
         } else if (StringUtils.countMatches(n.toString(), '=') == 0 ) {
             System.out.println("Smell detected! Variable not initialised on the same line it is declared: " + n);
         } else if (StringUtils.countMatches(n.toString(), '=') > 1 ) {
             System.out.println("Smell detected! Several variables assigned in a single statement: " + n);
         }
         super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(MethodDeclaration n, Object arg) {
+        String variableName = getGetterOrSetterVariableNames(n);
+        if (!variableName.isEmpty()) {
+            String methodName = n.getNameAsString();
+            if (variableName.charAt(0) == 'g' && !(methodName.equalsIgnoreCase("get" + variableName.substring(1)))) {
+                System.out.println("Smell detected! Accessor method named incorrectly: " + n.getNameAsString());
+            } else if (variableName.charAt(0) == 's' && !(methodName.equalsIgnoreCase("set" + variableName.substring(1)))) {
+                System.out.println("Smell detected! Mutator method named incorrectly: " + n.getNameAsString());
+            }
+        }
+        super.visit(n, arg);
+    }
+
+    private String getGetterOrSetterVariableNames(MethodDeclaration n) {
+        Optional<BlockStmt> body = n.getBody();
+        if (body.isPresent()) {
+            if (body.get().getStatements().size() == 1) {
+                if (body.get().getStatements().getFirst().isPresent()) {
+                    if (body.get().getStatements().getFirst().get().isReturnStmt()) {
+                        Optional<Expression> opStmt = body.get().getStatements().getFirst().get().asReturnStmt().getExpression();
+                        if (opStmt.isPresent()) {
+                            return "g" + opStmt.get().asNameExpr().getName().toString();
+                        }
+                    } else if (body.get().getStatements().getFirst().get().isExpressionStmt()) {
+                        return "s" + body.get().getStatements().getFirst().get().asExpressionStmt().getExpression().asAssignExpr().getTarget().toString();
+                    }
+                }
+            }
+        }
+        return "";
     }
 
     /**
@@ -43,7 +81,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
      */
     @Override
     public void visit(ClassOrInterfaceDeclaration n, Object arg) {
-        /* If there are methods in a class it will consider a public method a smell. Otherwise, the class is considered
+        /* If there are methods in a class it will consider a public variable a smell. Otherwise, the class is considered
         a data structure and it gets passed over */
         List<MethodDeclaration> methods = n.getMethods();
         if (!methods.isEmpty()) {
@@ -55,12 +93,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     }
 
     @Override
-    public void visit(BlockStmt n, Object arg) {
-        //System.out.println(n);
-        super.visit(n, arg);
-    }
-
-    @Override
     public void visit(StringLiteralExpr n, Object arg) {
         System.out.println("Smell detected! Unnecessary string literal: " + n);
         super.visit(n, arg);
@@ -68,9 +100,27 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(IntegerLiteralExpr n, Object arg) {
+        System.out.println("Integer literal " + n);
         if (n.asNumber().intValue() > 1 || n.asNumber().intValue() < -1 ) {
             System.out.println("Smell detected! Unnecessary integer literal: " + n.getParentNode());
         }
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(LongLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary decimal literal: " + n);
+        super.visit(n, arg);
+    }
+
+    public void visit(DoubleLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary decimal literal: " + n);
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(CharLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary char literal: " + n);
         super.visit(n, arg);
     }
 
@@ -80,7 +130,12 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         for (Expression e : n.getUpdate()) {
             variableNames.add(getTargetVariableName(e));
         }
-        n.getBody().asBlockStmt().getStatements().stream()
+        Statement body = n.getBody();
+        while (n.getBody().isForStmt()) {
+            body = body.asForStmt().getBody();
+        }
+        body.asBlockStmt().getStatements().stream()
+                .filter(Statement::isExpressionStmt)
                 .filter(o -> o.asExpressionStmt().getExpression().isAssignExpr() || o.asExpressionStmt().getExpression().isUnaryExpr())
                 .filter(o -> variableNames.contains(getTargetVariableName(o)))
                 .forEach(o -> System.out.println("Smell detected! Loop iteration variable changed in the body of a loop: " + o));
@@ -167,11 +222,4 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         return false;
     }
 
-    @Override
-    public void visit(MethodDeclaration n, Object arg) {
-        /*System.out.println(n.getBody());
-        n.getBody().ifPresent(BlockStmt::getStatements);
-         */
-        super.visit(n, arg);
-    }
 }
