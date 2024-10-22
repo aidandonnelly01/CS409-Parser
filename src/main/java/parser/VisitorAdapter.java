@@ -43,52 +43,35 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(MethodDeclaration n, Object arg) {
-        if (isGetterOrSetter(n)) {
-
+        String variableName = getGetterOrSetterVariableNames(n);
+        if (!variableName.isEmpty()) {
             String methodName = n.getNameAsString();
-            if (methodName.contains("get") || methodName.contains("set")) {
-                if (Character.isUpperCase(methodName.charAt(3))) {
-
-                }
-            } else {
-                System.out.println("Accessor or mutator not named correctly: " + n.getNameAsString());
+            if (variableName.charAt(0) == 'g' && !(methodName.equalsIgnoreCase("get" + variableName.substring(1)))) {
+                System.out.println("Smell detected! Accessor method named incorrectly: " + n.getNameAsString());
+            } else if (variableName.charAt(0) == 's' && !(methodName.equalsIgnoreCase("set" + variableName.substring(1)))) {
+                System.out.println("Smell detected! Mutator method named incorrectly: " + n.getNameAsString());
             }
         }
         super.visit(n, arg);
     }
 
-    private VariableDeclarator getVariableFromGetterOrSetter(MethodDeclaration n) {
+    private String getGetterOrSetterVariableNames(MethodDeclaration n) {
         Optional<BlockStmt> body = n.getBody();
         if (body.isPresent()) {
             if (body.get().getStatements().size() == 1) {
                 if (body.get().getStatements().getFirst().isPresent()) {
                     if (body.get().getStatements().getFirst().get().isReturnStmt()) {
-                        if (body.get().getStatements().getFirst().get().asReturnStmt().getExpression().isPresent()) {
-                            body.get().getStatements().getFirst().get().asReturnStmt().getExpression().get();
-                        };
-                    } else {
-                        return body.get().getStatements().getFirst().get().isAssertStmt();
+                        Optional<Expression> opStmt = body.get().getStatements().getFirst().get().asReturnStmt().getExpression();
+                        if (opStmt.isPresent()) {
+                            return "g" + opStmt.get().asNameExpr().getName().toString();
+                        }
+                    } else if (body.get().getStatements().getFirst().get().isExpressionStmt()) {
+                        return "s" + body.get().getStatements().getFirst().get().asExpressionStmt().getExpression().asAssignExpr().getTarget().toString();
                     }
                 }
             }
         }
-        return null;
-    }
-
-    private boolean isGetterOrSetter(MethodDeclaration n) {
-        Optional<BlockStmt> body = n.getBody();
-        if (body.isPresent()) {
-            if (body.get().getStatements().size() == 1) {
-                if (body.get().getStatements().getFirst().isPresent()) {
-                    if (body.get().getStatements().getFirst().get().isReturnStmt()) {
-                        return true;
-                    } else {
-                        return body.get().getStatements().getFirst().get().isAssertStmt();
-                    }
-                }
-            }
-        }
-        return false;
+        return "";
     }
 
     /**
@@ -117,9 +100,27 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(IntegerLiteralExpr n, Object arg) {
+        System.out.println("Integer literal " + n);
         if (n.asNumber().intValue() > 1 || n.asNumber().intValue() < -1 ) {
             System.out.println("Smell detected! Unnecessary integer literal: " + n.getParentNode());
         }
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(LongLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary decimal literal: " + n);
+        super.visit(n, arg);
+    }
+
+    public void visit(DoubleLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary decimal literal: " + n);
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(CharLiteralExpr n, Object arg) {
+        System.out.println("Smell detected! Unnecessary char literal: " + n);
         super.visit(n, arg);
     }
 

@@ -9,7 +9,7 @@ public class multipleBadCodeInstances {
 
     private class localClass{
         // Public field variable
-        public int aVar;
+        public int aVar; //detected
         public localClass(int i){
             aVar = i;
         }
@@ -24,10 +24,10 @@ public class multipleBadCodeInstances {
     private localClass fldc1, fldc2;
 
     // public instance variable
-    public double fldd;
+    public double fldd; //detected
 
     // public instance AND multiple declaration
-    public String fls1, fls2;
+    public String fls1, fls2; //detected
 
     // Accessor naming error
     public int fldi1Getter(){
@@ -37,6 +37,14 @@ public class multipleBadCodeInstances {
     // Accessor naming error
     public double fldd(){
         return fldd;
+    }
+
+    public double getFldd() {
+        return fldd;
+    }
+
+    public void setFldd(double f) {
+        fldd = f;
     }
 
     // Accessor naming error
@@ -61,18 +69,18 @@ public class multipleBadCodeInstances {
 
 
     public void declarationAndAssignmentErrors() {
-        // Three instances of uninitialised local variables
-        char c;
-        float f;
-        localClass lc;
+        // Three instances of uninitialised local variables - All flagged
+        char c; //detected
+        float f; //detected
+        localClass lc; //detected
 
-        // Three instances of multiple declarations
-        char a, b, d;
-        localClass lc1, lc2;
-        int x, y, z;
+        // Three instances of multiple declarations - All flagged
+        char a, b, d; //detected
+        localClass lc1, lc2; //detected
+        int x, y, z; //detected
 
         // Two instances of multiple assignments
-        x = y = z = 123;
+        x = y = z = 123; //detected
         c = 'X'; // OK
         a = b = c;
 
@@ -98,6 +106,8 @@ public class multipleBadCodeInstances {
     public int switchStatementErrors(String param){
         // missing fall through comment (3 times)
         // missing defaul statement
+        //first two detected as a fall through - correct
+        //lack of default statement detected
         int result = 0;
         switch(param) {
             case "one":
@@ -115,9 +125,9 @@ public class multipleBadCodeInstances {
     public void constantUsageErrors(int a, char b, double c, String d){
         // 4 constant usage errors in the boolean expressions
         while(a != 10 && c > 3.14159 ){
-            if (b == '!'){
+            if (b == '!'){ //should be detected
                 c = c-0.01; // this is okay
-            } else if (d.equals("Trellis")) {
+            } else if (d.equals("Trellis")) { //detected
                 c = c-0.05; // this is okay
             }
             a++;
