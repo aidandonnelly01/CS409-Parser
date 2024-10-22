@@ -57,17 +57,17 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     private String getGetterOrSetterVariableNames(MethodDeclaration n) {
         Optional<BlockStmt> body = n.getBody();
-        if (body.isPresent()) {
-            if (body.get().getStatements().size() == 1) {
-                if (body.get().getStatements().getFirst().isPresent()) {
-                    if (body.get().getStatements().getFirst().get().isReturnStmt()) {
-                        Optional<Expression> opStmt = body.get().getStatements().getFirst().get().asReturnStmt().getExpression();
-                        if (opStmt.isPresent()) {
-                            return "g" + opStmt.get().asNameExpr().getName().toString();
-                        }
-                    } else if (body.get().getStatements().getFirst().get().isExpressionStmt()) {
-                        return "s" + body.get().getStatements().getFirst().get().asExpressionStmt().getExpression().asAssignExpr().getTarget().toString();
+        if (body.isPresent() && body.get().getStatements().size() == 1) {
+            Optional<Statement> firstStmt = body.get().getStatements().getFirst();
+            if (firstStmt.isPresent()) {
+                Statement stmt = firstStmt.get();
+                if (stmt.isReturnStmt()) {
+                    Optional<Expression> opStmt = stmt.asReturnStmt().getExpression();
+                    if (opStmt.isPresent()) {
+                        return "g" + opStmt.get().asNameExpr().getName();
                     }
+                } else if (stmt.isExpressionStmt()) {
+                    return "s" + stmt.asExpressionStmt().getExpression().asAssignExpr().getTarget();
                 }
             }
         }
