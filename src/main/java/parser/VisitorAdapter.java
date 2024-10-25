@@ -165,44 +165,47 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     }
 
     public void visit(SwitchStmt n, Object arg) {
-        boolean isDefault = false;
         NodeList<SwitchEntry> entries = n.getEntries();
         //Loops through every entry
         for (int i = 0; i < entries.size(); i++) {
             //Gets the current entry
             SwitchEntry currentEntry = entries.get(i);
             //Checks if there is a default statement included in the switch statement
-            if (currentEntry.isDefault()) {
-                isDefault = true;
-            } else {
-                //If there are statements in the case entry, it will perform this loop. This means that the empty case
-                //exception is accounted for
-                if (!currentEntry.getStatements().isEmpty()) {
-                    //If the statement does not have one of the termination statements, such as break, continue or a thrown
-                    //exception, it will enter this statement
-                    if (!hasEndingStatement(currentEntry)) {
-                        //If it's not the final entry in the switch statement do this
-                        if (!(i == entries.size() - 1)) {
-                            //In most of the tests, the fall through comment seems to be contained on the next switch entry,
-                            //Which is why this is necessary to get the next statement
-                            SwitchEntry nextEntry = entries.get(i + 1);
-                            Optional<Comment> comment = nextEntry.getComment();
-                            //If there is a comment, check it is a fall through comment, if there are no comments,
-                            //then it must be a smell
-                            if (comment.isPresent()) {
-                                if (!comment.get().getContent().contains("fall through")) {
-                                    System.out.println("Smell detected! Switch statement case not specified as a fall through: " + entries.get(i));
-                                }
-                            } else {
+            //If there are statements in the case entry, it will perform this loop. This means that the empty case
+            //exception is accounted for
+            if (!currentEntry.getStatements().isEmpty()) {
+                //If the statement does not have one of the termination statements, such as break, continue or a thrown
+                //exception, it will enter this statement
+                if (!hasEndingStatement(currentEntry)) {
+                    //If it's not the final entry in the switch statement do this
+                    if (!(i == entries.size() - 1)) {
+                        //In most of the tests, the fall through comment seems to be contained on the next switch entry,
+                        //Which is why this is necessary to get the next statement
+                        SwitchEntry nextEntry = entries.get(i + 1);
+                        Optional<Comment> comment = nextEntry.getComment();
+                        //If there is a comment, check it is a fall through comment, if there are no comments,
+                        //then it must be a smell
+                        if (comment.isPresent()) {
+                            if (!comment.get().getContent().toLowerCase().contains("fall through")) {
                                 System.out.println("Smell detected! Switch statement case not specified as a fall through: " + entries.get(i));
                             }
+                        } else {
+                            System.out.println("Smell detected! Switch statement case not specified as a fall through: " + entries.get(i));
                         }
                     }
                 }
             }
         }
+        Optional<SwitchEntry> entry = entries.getLast();
+        boolean isDefault = false;
+        if (entry.isPresent()) {
+            SwitchEntry currentEntry = entry.get();
+            if (currentEntry.isDefault()) {
+                isDefault = true;
+            }
+        }
         if (!isDefault) {
-            n.getTokenRange().ifPresent(o -> System.out.println("No default statement at switch statement which is at: " + o.getBegin().toString()));
+            n.getTokenRange().ifPresent(o -> System.out.println("Smell detected! The last statement in this switch statement is not a default statement: " + o.getBegin().toString()));
         }
         super.visit(n, arg);
     }
@@ -220,6 +223,24 @@ public class VisitorAdapter extends VoidVisitorAdapter {
             }
         }
         return false;
+    }
+
+    @Override
+    public void visit(TryStmt n, Object arg) {
+        super.visit(n, arg);
+    }
+
+    @Override
+    public void visit(CatchClause n, Object arg) {
+        NodeList<Statement> statements = n.getBody().getStatements();
+        if (!n.getParameter().toString().contains("expected")) {
+            if (statements.isEmpty()) {
+                if (n.getAllContainedComments().isEmpty()) {
+                    System.out.println("Smell detected! No response to caught exception and no comment provided! : " + n);
+                }
+            }
+        }
+        super.visit(n, arg);
     }
 
 }

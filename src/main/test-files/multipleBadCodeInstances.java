@@ -141,6 +141,22 @@ public class multipleBadCodeInstances {
             fis = new FileInputStream(file);
         }catch(FileNotFoundException e){
         }
+        try{
+            File file = new File("a/file/path/location");
+            fis = new FileInputStream(file);
+        }catch(FileNotFoundException expected){
+        }
+        try{
+            File file = new File("a/file/path/location");
+            fis = new FileInputStream(file);
+        }catch(FileNotFoundException e){
+            //comment
+        }
+        try{
+            File file = new File("a/file/path/location");
+            fis = new FileInputStream(file);
+        }catch(FileNotFoundException expectedThrow){
+        }
         return fis;
     }
 
