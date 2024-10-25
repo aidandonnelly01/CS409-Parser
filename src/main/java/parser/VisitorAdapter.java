@@ -132,10 +132,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         super.visit(n, arg);
     }
 
-    private void checkIfStatements(ForStmt n, ArrayList<String> variableNames) {
-
-    }
-
     private void checkNoOffendingVariables(Statement body, ArrayList<String> variableNames) {
         body.asBlockStmt().getStatements().stream()
                 .filter(Statement::isExpressionStmt)
