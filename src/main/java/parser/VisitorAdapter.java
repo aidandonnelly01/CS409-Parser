@@ -14,11 +14,7 @@ import java.util.ArrayList;
 import java.util.Optional;
 
 public class VisitorAdapter extends VoidVisitorAdapter {
-    /**
-     * This method visits each local variable in the AST
-     * @param n VariableDeclarationExpr
-     * @param arg Object
-     */
+
     @Override
     public void visit(VariableDeclarationExpr n, Object arg) {
         //System.out.println("VariableDeclarationExpr visit");
@@ -108,6 +104,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         super.visit(n, arg);
     }
 
+    @Override
     public void visit(DoubleLiteralExpr n, Object arg) {
         System.out.println("Smell detected! Unnecessary decimal literal: " + n);
         super.visit(n, arg);
@@ -159,6 +156,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         return "";
     }
 
+    @Override
     public void visit(SwitchStmt n, Object arg) {
         NodeList<SwitchEntry> entries = n.getEntries();
         //Loops through every entry
