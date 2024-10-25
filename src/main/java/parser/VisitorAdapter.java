@@ -74,11 +74,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         return "";
     }
 
-    /**
-     * This method visits the entire class, extracts the instance variables and prints any that are unnecessarily public
-     * @param n
-     * @param arg
-     */
     @Override
     public void visit(ClassOrInterfaceDeclaration n, Object arg) {
         /* If there are methods in a class it will consider a public variable a smell. Otherwise, the class is considered
