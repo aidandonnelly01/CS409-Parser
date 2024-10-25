@@ -6,6 +6,7 @@ import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
+import com.github.javaparser.ast.visitor.GenericVisitorAdapter;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.apache.commons.lang3.StringUtils;
 
@@ -17,7 +18,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(VariableDeclarationExpr n, Object arg) {
-        //System.out.println("VariableDeclarationExpr visit");
+        // System.out.println("VariableDeclarationExpr visit");
         if (n.getVariables().size() > 1) {
             Optional<Node> parentNodeOp = n.getParentNode();
             if (parentNodeOp.isPresent()) {
@@ -28,9 +29,9 @@ public class VisitorAdapter extends VoidVisitorAdapter {
             } else {
                 System.out.println("Smell detected! Too many variables declared at once here: " + n);
             }
-        } else if (StringUtils.countMatches(n.toString(), '=') == 0 ) {
+        } else if (StringUtils.countMatches(n.toString(), '=') == 0) {
             System.out.println("Smell detected! Variable not initialised on the same line it is declared: " + n);
-        } else if (StringUtils.countMatches(n.toString(), '=') > 1 ) {
+        } else if (StringUtils.countMatches(n.toString(), '=') > 1) {
             System.out.println("Smell detected! Several variables assigned in a single statement: " + n);
         }
         super.visit(n, arg);
@@ -38,12 +39,14 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(MethodDeclaration n, Object arg) {
+        doubleDeclaration(n, arg);
         String variableName = getGetterOrSetterVariableNames(n);
         if (!variableName.isEmpty()) {
             String methodName = n.getNameAsString();
             if (variableName.charAt(0) == 'g' && !(methodName.equalsIgnoreCase("get" + variableName.substring(1)))) {
                 System.out.println("Smell detected! Accessor method named incorrectly: " + n.getNameAsString());
-            } else if (variableName.charAt(0) == 's' && !(methodName.equalsIgnoreCase("set" + variableName.substring(1)))) {
+            } else if (variableName.charAt(0) == 's'
+                    && !(methodName.equalsIgnoreCase("set" + variableName.substring(1)))) {
                 System.out.println("Smell detected! Mutator method named incorrectly: " + n.getNameAsString());
             }
         }
@@ -71,8 +74,33 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(ClassOrInterfaceDeclaration n, Object arg) {
-        /* If there are methods in a class it will consider a public variable a smell. Otherwise, the class is considered
-        a data structure and it gets passed over */
+        /*
+         * If there are methods in a class it will consider a public variable a smell.
+         * Otherwise, the class is considered
+         * a data structure and it gets passed over
+         */
+        List<FieldDeclaration> fields = n.getFields();
+        List<String> passedFields = new ArrayList<String>();
+        for (FieldDeclaration fieldDeclaration : fields) {
+            if (!fieldDeclaration.isPublic()) {
+                Node field = fieldDeclaration.removeComment();
+                String[] fieldSlice = field.toString().split(" ");
+                for (int i = 2; i < fieldSlice.length; i++) {
+                    passedFields.add(fieldSlice[i].replace(',', ' ').strip());
+                }
+            }
+        }
+        NodeList<BodyDeclaration<?>> nestedClasses = n.getMembers();
+        nestedClasses.forEach(x -> {
+            if (x.isClassOrInterfaceDeclaration()) {
+                ClassOrInterfaceDeclaration fun = x.asClassOrInterfaceDeclaration();
+                String v = fun.getAccessSpecifier().asString();
+                if (v == "public") {
+                    checkForPrivateFields(fun, passedFields);
+                }
+            }
+        });
+
         List<MethodDeclaration> methods = n.getMethods();
         if (!methods.isEmpty()) {
             n.getFields().stream()
@@ -80,6 +108,45 @@ public class VisitorAdapter extends VoidVisitorAdapter {
                     .forEach(o -> System.out.println("Smell detected! Unnecessary public variable: " + o));
         }
         super.visit(n, arg);
+    }
+
+    void checkForPrivateFields(ClassOrInterfaceDeclaration selClass, List<String> fields) {
+        List<MethodDeclaration> methods = selClass.getMethods();
+        for (MethodDeclaration methodDeclaration : methods) {
+            NodeList<Statement> statements = methodDeclaration.getBody().get().getStatements();
+            NodeList<Statement> checkStatements = new NodeList<>();
+            while (statements.isNonEmpty()) {
+                Statement statement = statements.get(0);
+                if (statement.isReturnStmt()) {
+                    ReturnStmt rStmt = statement.asReturnStmt();
+                    Expression nameExp = rStmt.getExpression().get();
+                    String name = nameExp.asNameExpr().getNameAsString();
+                    if (!fields.contains(name)){
+                        System.out.println("Smell detected! Public nested class " + selClass.getNameAsString()
+                                    + " is accessing private variable " + name);
+                    }
+                }
+                if (statement.isExpressionStmt()) {
+                    checkStatements.add(statement);
+                } else {
+                    NodeList<Statement> retStatements = getStatementsFromStatement(statement);
+                    if (retStatements != null) {
+                        statements.addAll(retStatements);
+                        checkStatements.addAll(retStatements);
+                    }
+                }
+                statements.remove(0);
+            }
+            for (Statement statement : checkStatements) {
+                if (statement.isExpressionStmt()) {
+                    Node nameNode = getVariable(statement);
+                    if (nameNode != null && fields.contains(nameNode.toString())) {
+                        System.out.println("Smell detected! Public nested class " + selClass.getNameAsString()
+                                + " is accessing private variable " + nameNode.toString());
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -114,30 +181,41 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         super.visit(n, arg);
     }
 
-    @Override
-    public void visit(ForStmt n, Object arg) {
+    void visitForStmt(ForStmt n) {
         ArrayList<String> variableNames = new ArrayList<>();
         for (Expression e : n.getUpdate()) {
             variableNames.add(getTargetVariableName(e));
         }
-        Statement body = n.getBody();
-        checkNoOffendingVariables(body, variableNames);
-        List<ForStmt> nestedIfStatements = n.getBody().asBlockStmt().getStatements().stream().filter(Statement::isForStmt).map(Statement::asForStmt).toList();
-        for (ForStmt s : nestedIfStatements) {
-            for (Expression e : s.getUpdate()) {
-                variableNames.add(getTargetVariableName(e));
+        NodeList<Statement> statements = n.getBody().asBlockStmt().getStatements();
+        NodeList<Statement> checkStatements = new NodeList<>();
+        while (statements.isNonEmpty()) {
+            Statement statement = statements.get(0);
+            if (statement.isExpressionStmt() && !checkStatements.contains(statement)) {
+                checkStatements.add(statement);
+            } else {
+                if (statement.isForStmt()) {
+                    ForStmt fStmt = statement.asForStmt();
+                    for (Expression e : fStmt.getUpdate()) {
+                        variableNames.add(getTargetVariableName(e));
+                    }
+                }
+                NodeList<Statement> retStatements = getStatementsFromStatement(statement);
+                if (retStatements != null) {
+                    statements.addAll(retStatements);
+                    checkStatements.addAll(retStatements);
+                }
             }
-            checkNoOffendingVariables(s.getBody(), variableNames);
+            statements.remove(0);
         }
-        super.visit(n, arg);
-    }
-
-    private void checkNoOffendingVariables(Statement body, ArrayList<String> variableNames) {
-        body.asBlockStmt().getStatements().stream()
-                .filter(Statement::isExpressionStmt)
-                .filter(o -> o.asExpressionStmt().getExpression().isAssignExpr() || o.asExpressionStmt().getExpression().isUnaryExpr())
-                .filter(o -> variableNames.contains(getTargetVariableName(o)))
-                .forEach(o -> System.out.println("Smell detected! Loop iteration variable changed in the body of a loop: " + o));
+        for (Statement statement : checkStatements) {
+            if (statement.isExpressionStmt()) {
+                String variable = getTargetVariableName(statement);
+                if (variable != "" && variableNames.contains(variable)) {
+                    System.out.println(
+                            "Smell detected! Loop iteration variable changed in the body of a loop: " + variable);
+                }
+            }
+        }
     }
 
     private String getTargetVariableName(Statement s) {
@@ -165,9 +243,9 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     @Override
     public void visit(SwitchStmt n, Object arg) {
         NodeList<SwitchEntry> entries = n.getEntries();
-        //Loops through every entry
+        // Loops through every entry
         for (int i = 0; i < entries.size(); i++) {
-            //Gets the current entry
+            // Gets the current entry
             SwitchEntry currentEntry = entries.get(i);
             //Checks if there is a default statement included in the switch statement
             //If there are statements in the case entry, it will perform this loop. This means that the empty case
@@ -240,6 +318,73 @@ public class VisitorAdapter extends VoidVisitorAdapter {
             }
         }
         super.visit(n, arg);
+    }
+
+    void doubleDeclaration(MethodDeclaration n, Object arg) {
+        System.out.println(n.getBody());
+        List<String> declaredVariables = new ArrayList<>();
+        List<String> detectedVariables = new ArrayList<>();
+        NodeList<Statement> statements = n.getBody().get().getStatements();
+        NodeList<Statement> checkStatements = new NodeList<>();
+        while (statements.isNonEmpty()) {
+            Statement statement = statements.get(0);
+            if (statement.isForStmt()) {
+                visitForStmt(statement.asForStmt());
+            }
+            if (statement.isExpressionStmt()) {
+                checkStatements.add(statement);
+            } else {
+                NodeList<Statement> retStatements = getStatementsFromStatement(statement);
+                if (retStatements != null) {
+                    statements.addAll(retStatements);
+                    checkStatements.addAll(retStatements);
+                }
+            }
+            statements.remove(0);
+        }
+        for (Statement statement : checkStatements) {
+            if (statement.isExpressionStmt()) {
+                Node nameNode = getVariable(statement);
+                if (nameNode != null && !declaredVariables.contains(nameNode.toString())) {
+                    declaredVariables.add(nameNode.toString());
+                } else if (nameNode != null && !detectedVariables.contains(nameNode.toString())) {
+                    detectedVariables.add(nameNode.toString());
+                    System.out.println("Smell detected! Variable " + nameNode.toString()
+                            + " declared more than once!");
+                }
+            }
+        }
+    }
+
+    private Node getVariable(Statement statement) {
+        ExpressionStmt expStmt = statement.asExpressionStmt();
+        Expression expression = expStmt.getExpression();
+        VariableDeclarationExpr variable = null;
+        if (expression.isVariableDeclarationExpr()) {
+            variable = expression.asVariableDeclarationExpr();
+            NodeList<VariableDeclarator> children = variable.getVariables();
+            for (VariableDeclarator chVariableDeclarator : children) {
+                List<Node> chNodes = chVariableDeclarator.getChildNodes();
+                Node nameNode = chNodes.get(1);
+                return nameNode;
+            }
+        }
+        return null;
+    }
+
+    private NodeList<Statement> getStatementsFromStatement(Statement statement) {
+        if (statement.isIfStmt()) {
+            IfStmt stmt = statement.asIfStmt();
+            BlockStmt thenStmt = stmt.getThenStmt().asBlockStmt();
+            return thenStmt.getStatements();
+        } else if (statement.isWhileStmt()) {
+            BlockStmt whileStmt = statement.asWhileStmt().getBody().asBlockStmt();
+            return whileStmt.getStatements();
+        } else if (statement.isForStmt()) {
+            BlockStmt forStmt = statement.asForStmt().getBody().asBlockStmt();
+            return forStmt.getStatements();
+        }
+        return null;
     }
 
 }
