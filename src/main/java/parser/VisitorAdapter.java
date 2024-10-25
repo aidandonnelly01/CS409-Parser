@@ -6,7 +6,6 @@ import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
-import com.github.javaparser.ast.visitor.GenericVisitorAdapter;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import org.apache.commons.lang3.StringUtils;
 
@@ -18,7 +17,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(VariableDeclarationExpr n, Object arg) {
-        // System.out.println("VariableDeclarationExpr visit");
         if (n.getVariables().size() > 1) {
             Optional<Node> parentNodeOp = n.getParentNode();
             if (parentNodeOp.isPresent()) {
@@ -37,9 +35,9 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         super.visit(n, arg);
     }
 
-    @Override
-    public void visit(MethodDeclaration n, Object arg) {
-        doubleDeclaration(n, arg);
+    //@Override
+/*    public void visit(MethodDeclaration n, Object arg) {
+        //doubleDeclaration(n, arg);
         String variableName = getGetterOrSetterVariableNames(n);
         if (!variableName.isEmpty()) {
             String methodName = n.getNameAsString();
@@ -51,7 +49,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
             }
         }
         super.visit(n, arg);
-    }
+    }*/
 
     private String getGetterOrSetterVariableNames(MethodDeclaration n) {
         Optional<BlockStmt> body = n.getBody();
@@ -80,7 +78,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
          * a data structure and it gets passed over
          */
         List<FieldDeclaration> fields = n.getFields();
-        List<String> passedFields = new ArrayList<String>();
+        List<String> passedFields = new ArrayList<>();
         for (FieldDeclaration fieldDeclaration : fields) {
             if (!fieldDeclaration.isPublic()) {
                 Node field = fieldDeclaration.removeComment();
@@ -181,7 +179,8 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         super.visit(n, arg);
     }
 
-    void visitForStmt(ForStmt n) {
+    @Override
+    public void visit(ForStmt n, Object arg) {
         ArrayList<String> variableNames = new ArrayList<>();
         for (Expression e : n.getUpdate()) {
             variableNames.add(getTargetVariableName(e));
@@ -320,17 +319,62 @@ public class VisitorAdapter extends VoidVisitorAdapter {
         super.visit(n, arg);
     }
 
-    void doubleDeclaration(MethodDeclaration n, Object arg) {
-        System.out.println(n.getBody());
+    @Override
+    public void visit(MethodDeclaration n, Object arg) {
+        List<String> declaredVariables = new ArrayList<>();
+        List<String> detectedVariables = new ArrayList<>();
+        NodeList<Statement> statements = n.getBody().get().getStatements();
+        ArrayList<Statement> statements1 = new ArrayList<>(statements);
+        NodeList<Statement> checkStatements = new NodeList<>();
+        while (!statements1.isEmpty()) {
+            Statement statement = statements1.get(0);
+            if (statement.isExpressionStmt()) {
+                checkStatements.add(statement);
+            } else {
+                NodeList<Statement> retStatements = getStatementsFromStatement(statement);
+                if (retStatements != null) {
+                    statements1.addAll(retStatements);
+                    checkStatements.addAll(retStatements);
+                }
+            }
+
+            statements1.remove(0);
+        }
+        for (Statement statement : checkStatements) {
+            if (statement.isExpressionStmt()) {
+                Node nameNode = getVariable(statement);
+                if (nameNode != null && !declaredVariables.contains(nameNode.toString())) {
+                    declaredVariables.add(nameNode.toString());
+                } else if (nameNode != null && !detectedVariables.contains(nameNode.toString())) {
+                    detectedVariables.add(nameNode.toString());
+                    System.out.println("Smell detected! Variable " + nameNode.toString()
+                            + " declared more than once!");
+                }
+            }
+        }
+        String variableName = getGetterOrSetterVariableNames(n);
+        if (!variableName.isEmpty()) {
+            String methodName = n.getNameAsString();
+            if (variableName.charAt(0) == 'g' && !(methodName.equalsIgnoreCase("get" + variableName.substring(1)))) {
+                System.out.println("Smell detected! Accessor method named incorrectly: " + n.getNameAsString());
+            } else if (variableName.charAt(0) == 's'
+                    && !(methodName.equalsIgnoreCase("set" + variableName.substring(1)))) {
+                System.out.println("Smell detected! Mutator method named incorrectly: " + n.getNameAsString());
+            }
+        }
+        super.visit(n, arg);
+    }
+
+/*    void doubleDeclaration(MethodDeclaration n, Object arg) {
         List<String> declaredVariables = new ArrayList<>();
         List<String> detectedVariables = new ArrayList<>();
         NodeList<Statement> statements = n.getBody().get().getStatements();
         NodeList<Statement> checkStatements = new NodeList<>();
         while (statements.isNonEmpty()) {
             Statement statement = statements.get(0);
-            if (statement.isForStmt()) {
+            *//*if (statement.isForStmt()) {
                 visitForStmt(statement.asForStmt());
-            }
+            }*//*
             if (statement.isExpressionStmt()) {
                 checkStatements.add(statement);
             } else {
@@ -340,6 +384,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
                     checkStatements.addAll(retStatements);
                 }
             }
+
             statements.remove(0);
         }
         for (Statement statement : checkStatements) {
@@ -354,7 +399,7 @@ public class VisitorAdapter extends VoidVisitorAdapter {
                 }
             }
         }
-    }
+    }*/
 
     private Node getVariable(Statement statement) {
         ExpressionStmt expStmt = statement.asExpressionStmt();
