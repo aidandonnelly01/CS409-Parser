@@ -18,7 +18,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     @Override
     public void visit(VariableDeclarationExpr n, Object arg) {
         //System.out.println("VariableDeclarationExpr visit");
-        System.out.println("Variable declaration: " + n);
         if (n.getVariables().size() > 1) {
             Optional<Node> parentNodeOp = n.getParentNode();
             if (parentNodeOp.isPresent()) {
@@ -91,7 +90,6 @@ public class VisitorAdapter extends VoidVisitorAdapter {
 
     @Override
     public void visit(IntegerLiteralExpr n, Object arg) {
-        System.out.println("Integer literal " + n);
         if (n.asNumber().intValue() > 1 || n.asNumber().intValue() < -1 ) {
             System.out.println("Smell detected! Unnecessary integer literal: " + n.getParentNode());
         }
@@ -123,15 +121,27 @@ public class VisitorAdapter extends VoidVisitorAdapter {
             variableNames.add(getTargetVariableName(e));
         }
         Statement body = n.getBody();
-        while (n.getBody().isForStmt()) {
-            body = body.asForStmt().getBody();
+        checkNoOffendingVariables(body, variableNames);
+        List<ForStmt> nestedIfStatements = n.getBody().asBlockStmt().getStatements().stream().filter(Statement::isForStmt).map(Statement::asForStmt).toList();
+        for (ForStmt s : nestedIfStatements) {
+            for (Expression e : s.getUpdate()) {
+                variableNames.add(getTargetVariableName(e));
+            }
+            checkNoOffendingVariables(s.getBody(), variableNames);
         }
+        super.visit(n, arg);
+    }
+
+    private void checkIfStatements(ForStmt n, ArrayList<String> variableNames) {
+
+    }
+
+    private void checkNoOffendingVariables(Statement body, ArrayList<String> variableNames) {
         body.asBlockStmt().getStatements().stream()
                 .filter(Statement::isExpressionStmt)
                 .filter(o -> o.asExpressionStmt().getExpression().isAssignExpr() || o.asExpressionStmt().getExpression().isUnaryExpr())
                 .filter(o -> variableNames.contains(getTargetVariableName(o)))
                 .forEach(o -> System.out.println("Smell detected! Loop iteration variable changed in the body of a loop: " + o));
-        super.visit(n, arg);
     }
 
     private String getTargetVariableName(Statement s) {
@@ -226,8 +236,8 @@ public class VisitorAdapter extends VoidVisitorAdapter {
     @Override
     public void visit(CatchClause n, Object arg) {
         NodeList<Statement> statements = n.getBody().getStatements();
-        if (!n.getParameter().toString().contains("expected")) {
-            if (statements.isEmpty()) {
+        if (statements.isEmpty()) {
+            if (!n.getParameter().toString().contains("expected")) {
                 if (n.getAllContainedComments().isEmpty()) {
                     System.out.println("Smell detected! No response to caught exception and no comment provided! : " + n);
                 }
